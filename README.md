@@ -1,18 +1,18 @@
-# 📧 Spam Email Detection
+# 🏠 House Price Prediction
 
-NLP-based spam classifier using **TF-IDF Vectorization** and **Logistic Regression**.
+End-to-end Linear Regression model for predicting house prices with EDA and RMSE evaluation.
 
 ## 🔧 Tech Stack
 - Python, Scikit-learn, Pandas, Numpy
-- TF-IDF Vectorizer, Logistic Regression
+- Linear Regression, StandardScaler
 - Flask (backend API)
 - HTML/CSS/JavaScript (frontend)
-- Matplotlib (visualization)
+- Matplotlib, Seaborn (visualization)
 
 ## 📁 Project Structure
 ```
-spam-detection/
-├── train_model.py      # ML training script
+house-price-prediction/
+├── train_model.py      # EDA + training script
 ├── app.py              # Flask API
 ├── templates/
 │   └── index.html      # Web interface
@@ -27,15 +27,13 @@ spam-detection/
 pip install -r requirements.txt
 ```
 
-### 2. Download Dataset
-Download `spam.csv` from [UCI SMS Spam Collection](https://archive.ics.uci.edu/ml/datasets/SMS+Spam+Collection) and place in root folder.
-
-### 3. Train the model
+### 2. Train the model
 ```bash
 python train_model.py
 ```
+This auto-downloads the California Housing dataset via sklearn.
 
-### 4. Run Flask app
+### 3. Run Flask app
 ```bash
 python app.py
 ```
@@ -44,12 +42,13 @@ Visit `http://localhost:5000`
 ## 📊 Model Performance
 | Metric | Score |
 |--------|-------|
-| Accuracy | ~98% |
-| Precision | ~97% |
-| Recall | ~96% |
+| RMSE   | ~0.52 |
+| R²     | ~0.63 |
 
 ## 🧠 Techniques Used
-- Text cleaning (lowercase, punctuation removal, digit removal)
-- TF-IDF with bigrams (ngram_range 1-2)
-- Logistic Regression with L2 regularization
-- Confusion matrix & classification report visualization
+- Exploratory Data Analysis (EDA)
+- IQR-based Outlier Removal
+- Feature Engineering (rooms_per_person, bedrooms_per_room)
+- StandardScaler normalization
+- RMSE & R² evaluation metrics
+- Correlation heatmap, scatter plots
