@@ -1,106 +1,108 @@
-import pandas as pd
+import os
 import numpy as np
-import pickle
 import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import mean_squared_error, r2_score
+import tensorflow as tf
+from tensorflow.keras import layers, models
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 
-# ── 1. Load Data ──────────────────────────────────────────────────────────────
-# Uses sklearn's built-in California Housing dataset as a reliable alternative
-from sklearn.datasets import fetch_california_housing
+# ── Config ────────────────────────────────────────────────────────────────────
+IMG_SIZE   = (128, 128)
+BATCH_SIZE = 32
+EPOCHS     = 20
+DATA_DIR   = 'dataset'   # Folder structure: dataset/ClassName/image.jpg
 
-housing = fetch_california_housing(as_frame=True)
-df = housing.frame
-print(f"Dataset shape: {df.shape}")
-print(df.describe())
+# ── 1. Data Augmentation & Generators ────────────────────────────────────────
+train_gen = ImageDataGenerator(
+    rescale=1./255,
+    rotation_range=20,
+    width_shift_range=0.1,
+    height_shift_range=0.1,
+    horizontal_flip=True,
+    zoom_range=0.2,
+    validation_split=0.2
+)
 
-# ── 2. EDA ────────────────────────────────────────────────────────────────────
-fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+train_data = train_gen.flow_from_directory(
+    DATA_DIR, target_size=IMG_SIZE, batch_size=BATCH_SIZE,
+    class_mode='categorical', subset='training'
+)
+val_data = train_gen.flow_from_directory(
+    DATA_DIR, target_size=IMG_SIZE, batch_size=BATCH_SIZE,
+    class_mode='categorical', subset='validation'
+)
 
-# Distribution of target
-df['MedHouseVal'].hist(bins=50, ax=axes[0, 0], color='steelblue', edgecolor='white')
-axes[0, 0].set_title('House Value Distribution')
-axes[0, 0].set_xlabel('Median House Value ($100k)')
+n_classes = len(train_data.class_indices)
+print(f"Classes ({n_classes}): {train_data.class_indices}")
 
-# Correlation heatmap
-corr = df.corr()
-sns.heatmap(corr, annot=True, fmt='.2f', ax=axes[0, 1], cmap='coolwarm', linewidths=0.5)
-axes[0, 1].set_title('Correlation Heatmap')
+# ── 2. CNN Architecture ───────────────────────────────────────────────────────
+model = models.Sequential([
+    # Block 1
+    layers.Conv2D(32, (3, 3), activation='relu', padding='same', input_shape=(*IMG_SIZE, 3)),
+    layers.BatchNormalization(),
+    layers.Conv2D(32, (3, 3), activation='relu', padding='same'),
+    layers.MaxPooling2D(2, 2),
+    layers.Dropout(0.25),
 
-# Income vs Price
-axes[1, 0].scatter(df['MedInc'], df['MedHouseVal'], alpha=0.3, color='tomato', s=5)
-axes[1, 0].set_xlabel('Median Income')
-axes[1, 0].set_ylabel('House Value')
-axes[1, 0].set_title('Income vs House Value')
+    # Block 2
+    layers.Conv2D(64, (3, 3), activation='relu', padding='same'),
+    layers.BatchNormalization(),
+    layers.Conv2D(64, (3, 3), activation='relu', padding='same'),
+    layers.MaxPooling2D(2, 2),
+    layers.Dropout(0.25),
 
-# Rooms vs Price
-axes[1, 1].scatter(df['AveRooms'], df['MedHouseVal'], alpha=0.3, color='seagreen', s=5)
-axes[1, 1].set_xlabel('Average Rooms')
-axes[1, 1].set_ylabel('House Value')
-axes[1, 1].set_title('Avg Rooms vs House Value')
+    # Block 3
+    layers.Conv2D(128, (3, 3), activation='relu', padding='same'),
+    layers.BatchNormalization(),
+    layers.MaxPooling2D(2, 2),
+    layers.Dropout(0.3),
+
+    # Classifier
+    layers.Flatten(),
+    layers.Dense(256, activation='relu'),
+    layers.Dropout(0.5),
+    layers.Dense(n_classes, activation='softmax')
+])
+
+model.compile(optimizer='adam',
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
+model.summary()
+
+# ── 3. Callbacks ──────────────────────────────────────────────────────────────
+callbacks = [
+    EarlyStopping(patience=5, restore_best_weights=True, monitor='val_accuracy'),
+    ModelCheckpoint('plant_disease_model.keras', save_best_only=True, monitor='val_accuracy')
+]
+
+# ── 4. Training ───────────────────────────────────────────────────────────────
+history = model.fit(
+    train_data,
+    validation_data=val_data,
+    epochs=EPOCHS,
+    callbacks=callbacks
+)
+
+# ── 5. Evaluation Plot ────────────────────────────────────────────────────────
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+axes[0].plot(history.history['accuracy'],     label='Train Acc')
+axes[0].plot(history.history['val_accuracy'], label='Val Acc')
+axes[0].set_title('Accuracy')
+axes[0].legend()
+
+axes[1].plot(history.history['loss'],     label='Train Loss')
+axes[1].plot(history.history['val_loss'], label='Val Loss')
+axes[1].set_title('Loss')
+axes[1].legend()
 
 plt.tight_layout()
-plt.savefig('eda_plots.png', dpi=150)
+plt.savefig('training_history.png', dpi=150)
 plt.show()
 
-# ── 3. Outlier Removal (IQR method) ──────────────────────────────────────────
-Q1 = df['MedHouseVal'].quantile(0.25)
-Q3 = df['MedHouseVal'].quantile(0.75)
-IQR = Q3 - Q1
-df = df[(df['MedHouseVal'] >= Q1 - 1.5 * IQR) & (df['MedHouseVal'] <= Q3 + 1.5 * IQR)]
-print(f"\nAfter outlier removal: {df.shape}")
+# ── 6. Save Class Labels ──────────────────────────────────────────────────────
+import json
+with open('class_indices.json', 'w') as f:
+    json.dump(train_data.class_indices, f)
 
-# ── 4. Feature Engineering ────────────────────────────────────────────────────
-df['rooms_per_person']    = df['AveRooms'] / df['Population'].replace(0, np.nan)
-df['bedrooms_per_room']   = df['AveBedrms'] / df['AveRooms'].replace(0, np.nan)
-df['population_per_household'] = df['Population'] / df['HouseAge'].replace(0, np.nan)
-df.fillna(df.median(numeric_only=True), inplace=True)
-
-# ── 5. Train / Test Split ─────────────────────────────────────────────────────
-features = ['MedInc', 'HouseAge', 'AveRooms', 'AveBedrms',
-            'Population', 'AveOccup', 'Latitude', 'Longitude',
-            'rooms_per_person', 'bedrooms_per_room', 'population_per_household']
-
-X = df[features]
-y = df['MedHouseVal']
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-# ── 6. Scaling ────────────────────────────────────────────────────────────────
-scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled  = scaler.transform(X_test)
-
-# ── 7. Model Training ─────────────────────────────────────────────────────────
-model = LinearRegression()
-model.fit(X_train_scaled, y_train)
-
-# ── 8. Evaluation ─────────────────────────────────────────────────────────────
-y_pred = model.predict(X_test_scaled)
-rmse   = np.sqrt(mean_squared_error(y_test, y_pred))
-r2     = r2_score(y_test, y_pred)
-print(f"\nRMSE : {rmse:.4f}")
-print(f"R²   : {r2:.4f}")
-
-# ── 9. Prediction Plot ────────────────────────────────────────────────────────
-plt.figure(figsize=(8, 6))
-plt.scatter(y_test, y_pred, alpha=0.4, color='steelblue', s=8)
-plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--', lw=2)
-plt.xlabel('Actual Price')
-plt.ylabel('Predicted Price')
-plt.title(f'Actual vs Predicted  |  RMSE={rmse:.3f}  R²={r2:.3f}')
-plt.tight_layout()
-plt.savefig('prediction_plot.png', dpi=150)
-plt.show()
-
-# ── 10. Save Artefacts ────────────────────────────────────────────────────────
-with open('model.pkl', 'wb') as f:
-    pickle.dump(model, f)
-with open('scaler.pkl', 'wb') as f:
-    pickle.dump(scaler, f)
-with open('features.pkl', 'wb') as f:
-    pickle.dump(features, f)
-print("Saved model, scaler, features.")
+print("Model and class indices saved.")

@@ -1,21 +1,25 @@
-# 🏠 House Price Prediction
+# 🌿 Plant Disease Detection
 
-End-to-end Linear Regression model for predicting house prices with EDA and RMSE evaluation.
+CNN-based image classification model using TensorFlow/Keras for real-time plant disease detection.
 
 ## 🔧 Tech Stack
-- Python, Scikit-learn, Pandas, Numpy
-- Linear Regression, StandardScaler
+- Python, TensorFlow / Keras
+- Custom CNN with BatchNorm, Dropout
 - Flask (backend API)
 - HTML/CSS/JavaScript (frontend)
-- Matplotlib, Seaborn (visualization)
+- ImageDataGenerator for augmentation
 
 ## 📁 Project Structure
 ```
-house-price-prediction/
-├── train_model.py      # EDA + training script
-├── app.py              # Flask API
+plant-disease-detection/
+├── train_model.py               # CNN training script
+├── app.py                       # Flask API
 ├── templates/
-│   └── index.html      # Web interface
+│   └── index.html               # Web interface (drag & drop upload)
+├── dataset/                     # YOUR dataset here
+│   ├── Healthy/
+│   ├── Powdery_Mildew/
+│   └── ...
 ├── requirements.txt
 └── README.md
 ```
@@ -27,28 +31,32 @@ house-price-prediction/
 pip install -r requirements.txt
 ```
 
-### 2. Train the model
+### 2. Prepare Dataset
+Recommended: [PlantVillage Dataset](https://www.kaggle.com/datasets/emmarex/plantdisease)
+
+Structure your `dataset/` folder as:
+```
+dataset/
+├── Tomato_Healthy/
+├── Tomato_Early_Blight/
+├── Potato_Late_Blight/
+└── ...
+```
+
+### 3. Train the model
 ```bash
 python train_model.py
 ```
-This auto-downloads the California Housing dataset via sklearn.
 
-### 3. Run Flask app
+### 4. Run Flask app
 ```bash
 python app.py
 ```
-Visit `http://localhost:5000`
-
-## 📊 Model Performance
-| Metric | Score |
-|--------|-------|
-| RMSE   | ~0.52 |
-| R²     | ~0.63 |
+Visit `http://localhost:5000` and upload a leaf image!
 
 ## 🧠 Techniques Used
-- Exploratory Data Analysis (EDA)
-- IQR-based Outlier Removal
-- Feature Engineering (rooms_per_person, bedrooms_per_room)
-- StandardScaler normalization
-- RMSE & R² evaluation metrics
-- Correlation heatmap, scatter plots
+- Data Augmentation (rotation, flip, zoom, shift)
+- CNN with 3 Conv blocks + BatchNormalization
+- EarlyStopping + ModelCheckpoint callbacks
+- Softmax multi-class classification
+- Real-time image upload and prediction via Flask
